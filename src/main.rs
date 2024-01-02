@@ -26,7 +26,7 @@ fn main() {
             Ok(content) => {
                 let mut len_of_most_bytes = 0;
                 let lines = content.lines().collect::<Vec<&str>>();
-                let characters = content.chars().collect::<Vec<char>>().len();
+                let characters = content.chars().count();
                 let bytes = content.bytes().len();
 
                 for line in &lines {
@@ -36,18 +36,21 @@ fn main() {
                     }
                 }
 
-                // This is wrong
                 let words = lines
                     .clone()
                     .into_iter()
-                    .map(|line| line.split(' '))
-                    .flatten().filter(|word| !word.trim().is_empty())
-                    .collect::<Vec<&str>>()
-                    .len();
+                    .map(|line| line.split_whitespace())
+                    .flatten()
+                    .count();
 
                 println!(
                     "{}\nl: {}\tc: {}\tw: {}\tm: {}\tL: {} total",
-                    file, lines.len(), bytes, words, characters, len_of_most_bytes
+                    file,
+                    lines.len(),
+                    bytes,
+                    words,
+                    characters,
+                    len_of_most_bytes
                 );
 
                 total_lines += lines.len();
