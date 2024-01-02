@@ -41,7 +41,7 @@ fn main() {
                     .clone()
                     .into_iter()
                     .map(|line| line.split(' '))
-                    .flatten()
+                    .flatten().filter(|word| !word.trim().is_empty())
                     .collect::<Vec<&str>>()
                     .len();
 
