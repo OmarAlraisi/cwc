@@ -10,11 +10,11 @@ impl Display for ParseError {
 #[derive(Debug)]
 pub struct Options {
     pub file_names: Vec<String>,
-    most_bytes: bool,
-    bytes: bool,
-    lines: bool,
-    characters: bool,
-    words: bool,
+    pub most_bytes: bool,
+    pub bytes: bool,
+    pub lines: bool,
+    pub characters: bool,
+    pub words: bool,
 }
 
 impl Options {
@@ -73,7 +73,8 @@ impl Options {
             }
             _ => {
                 let mut idx = 0;
-                let mut options = Options::new(false);
+                let no_options = !args[0].starts_with('-');
+                let mut options = Options::new(no_options);
                 while idx != args.len() && args[idx].starts_with('-') {
                     if let Some(err) = options.decode_options(args[idx].clone()) {
                         return Err(err);

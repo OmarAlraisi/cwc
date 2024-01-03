@@ -1,75 +1,100 @@
 mod options;
+mod stats;
 
 use options::Options;
+use stats::Stats;
+
 use std::{fs, process::exit};
 
 fn main() {
     let options = match Options::parse_options() {
         Ok(options) => options,
         Err(error) => {
-            println!("{}", error);
+            eprintln!("{}", error);
             std::process::exit(1);
         }
     };
 
-    let files = options.file_names.clone();
-
     let mut status_code = 0;
-    let mut total_lines = 0;
-    let mut total_words = 0;
-    let mut total_characters = 0;
-    let mut total_bytes = 0;
-    let mut total_len_of_most_bytes = 0;
+    let mut stats: Vec<Stats> = vec![];
 
-    for file in files {
-        match fs::read_to_string(&file) {
-            Ok(content) => {
-                let mut len_of_most_bytes = 0;
-                let lines = content.lines().collect::<Vec<&str>>();
-                let characters = content.chars().count();
-                let bytes = content.bytes().len();
+    for file_name in &options.file_names {
+        match get_stats(file_name, &options) {
+            Ok(stat) => {
+                stat.display(&options, file_name);
+                stats.push(stat);
+            }
+            Err(err) => {
+                eprintln!("{}", err.0);
+                status_code = 1;
+            }
+        }
+    }
 
+    if options.file_names.len() != 1 {
+        let mut total = Stats::new(0, 0, 0, 0, 0);
+        for stat in stats {
+            total.lines += stat.lines;
+            total.bytes += stat.bytes;
+            total.words += stat.words;
+            total.characters += stat.characters;
+
+            if stat.len_of_most_bytes > total.len_of_most_bytes {
+                total.len_of_most_bytes = stat.len_of_most_bytes;
+            }
+        }
+
+        total.display(&options, &String::from("total"));
+    }
+
+    exit(status_code);
+}
+
+struct FileNotFoundError(String);
+
+fn get_stats(file_name: &String, options: &Options) -> Result<Stats, FileNotFoundError> {
+    match fs::read_to_string(&file_name) {
+        Ok(content) => {
+            let mut len_of_most_bytes = 0;
+            let lines = content.lines().collect::<Vec<&str>>();
+            let characters = if options.characters {
+                content.chars().count()
+            } else {
+                0
+            };
+            let bytes = if options.bytes {
+                content.bytes().len()
+            } else {
+                0
+            };
+
+            if options.most_bytes {
                 for line in &lines {
                     let byte_len = line.bytes().len();
                     if byte_len > len_of_most_bytes {
                         len_of_most_bytes = byte_len;
                     }
                 }
-
-                let words = lines
-                    .clone()
-                    .into_iter()
-                    .map(|line| line.split_whitespace())
-                    .flatten()
-                    .count();
-
-                println!(
-                    "{}\nl: {}\tc: {}\tw: {}\tm: {}\tL: {} total",
-                    file,
-                    lines.len(),
-                    bytes,
-                    words,
-                    characters,
-                    len_of_most_bytes
-                );
-
-                total_lines += lines.len();
-                total_bytes += bytes;
-                total_words += words;
-                total_characters += characters;
-                total_len_of_most_bytes = len_of_most_bytes;
             }
-            Err(_) => {
-                eprintln!("wcw: {}: open: No such file or directory", file);
-                status_code = 1;
-            }
+
+            // this is really slow
+            let words = if options.words {
+                content.chars().filter(|c| !c.is_whitespace()).count()
+            } else {
+                0
+            };
+
+            Ok(Stats::new(
+                lines.len(),
+                bytes,
+                words,
+                characters,
+                len_of_most_bytes,
+            ))
         }
+        Err(_) => Err(FileNotFoundError(format!(
+            "wcw: {}: open: No such file or directory",
+            file_name
+        ))),
     }
-
-    println!(
-        "L: {}\nc: {}\nw: {}\nm: {}\nl: {} total",
-        total_lines, total_bytes, total_words, total_characters, total_len_of_most_bytes
-    );
-
-    exit(status_code);
 }
