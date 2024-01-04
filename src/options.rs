@@ -1,15 +1,17 @@
+use std::io::{self, Read};
 use std::{env, fmt::Display};
 
+use crate::stats::Stats;
+
 pub struct ParseError(String);
+
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-#[derive(Debug)]
 pub struct Options {
-    pub file_names: Vec<String>,
     pub most_bytes: bool,
     pub bytes: bool,
     pub lines: bool,
@@ -18,19 +20,42 @@ pub struct Options {
 }
 
 impl Options {
-    fn new(no_args: bool) -> Self {
-        Options {
-            file_names: vec![],
-            most_bytes: false,
-            bytes: no_args,
-            lines: no_args,
-            characters: false,
-            words: no_args,
-        }
-    }
+    pub fn parse_options() -> Result<(Options, Vec<String>), ParseError> {
+        let mut args = env::args().skip(1);
 
-    fn add_file(&mut self, file_name: String) {
-        self.file_names.push(file_name);
+        let mut options = Options {
+            most_bytes: false,
+            bytes: false,
+            lines: false,
+            characters: false,
+            words: false,
+        };
+        let mut file_names: Vec<String> = vec![];
+
+        while let Some(arg) = args.next() {
+            if arg.starts_with('-') {
+                if let Some(err) = options.decode_options(arg) {
+                    return Err(err);
+                }
+            } else {
+                file_names.push(arg);
+            }
+        }
+
+        if !options.characters && !options.lines && !options.bytes && !options.words && !options.most_bytes {
+            options.lines = true;
+            options.words = true;
+            options.bytes = true;
+        }
+
+        if file_names.len() == 0 {
+            let mut content = String::new();
+            io::stdin().read_to_string(&mut content).unwrap();
+            let stats = Stats::get_stats(content, &options);
+            stats.display(&options, &String::from(""));
+        }
+
+        Ok((options, file_names))
     }
 
     fn decode_options(&mut self, arg: String) -> Option<ParseError> {
@@ -54,45 +79,5 @@ impl Options {
         }
 
         None
-    }
-
-    pub fn parse_options() -> Result<Options, ParseError> {
-        let args: Vec<String> = env::args().skip(1).collect();
-        match args.len() {
-            0 => Err(ParseError(String::from(
-                "Error: Usage: wcw [-Lclmw] [file_name]",
-            ))),
-            1 => {
-                if args[0].starts_with('-') {
-                    Err(ParseError(String::from("Usage: wcw [-LclMw] [file_name]")))
-                } else {
-                    let mut options = Options::new(true);
-                    options.add_file(args[0].clone());
-                    Ok(options)
-                }
-            }
-            _ => {
-                let mut idx = 0;
-                let no_options = !args[0].starts_with('-');
-                let mut options = Options::new(no_options);
-                while idx != args.len() && args[idx].starts_with('-') {
-                    if let Some(err) = options.decode_options(args[idx].clone()) {
-                        return Err(err);
-                    };
-                    idx += 1;
-                }
-
-                if idx == args.len() {
-                    return Err(ParseError(String::from("No input provided")));
-                }
-
-                while idx != args.len() {
-                    options.add_file(args[idx].clone());
-                    idx += 1;
-                }
-
-                Ok(options)
-            }
-        }
     }
 }
